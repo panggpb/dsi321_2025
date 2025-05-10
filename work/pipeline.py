@@ -1,7 +1,7 @@
 import requests
 import pandas as pd
 from prefect import flow, task
-
+#try
 @task
 def get_aqi_data() -> list[dict]:
     """
