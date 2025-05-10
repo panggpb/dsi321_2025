@@ -108,7 +108,7 @@ def main_flow(
     ACCESS_KEY = "access_key"
     SECRET_KEY = "secret_key"
     lakefs_endpoint = "http://lakefs-dev:8000/"
-    repo = "air-quality"
+    repo = "dsi321-record-air-quality"
     branch = "main"
     file_path = "airquality.parquet"
     lakefs_s3_path = f"s3a://{repo}/{branch}/{file_path}"
