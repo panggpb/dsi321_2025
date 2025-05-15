@@ -1,209 +1,243 @@
 import os
 import pandas as pd
-import numpy as np
-import plotly.express as px
-import matplotlib.pyplot as plt
 import streamlit as st
-import pyarrow.parquet as pq
+import plotly.express as px
 import s3fs
-import time
-from openai import OpenAI
-from langchain.prompts import PromptTemplate
-from zoneinfo import ZoneInfo
-from datetime import timedelta, datetime
 
+# --- Page Config ---
+st.set_page_config(page_title="PM2.5 Dashboard", layout="wide")
 
-# Set up environments of LakeFS
-lakefs_endpoint = os.getenv("LAKEFS_ENDPOINT", "http://lakefs-dev:8000")
-ACCESS_KEY = os.getenv("LAKEFS_ACCESS_KEY")
-SECRET_KEY = os.getenv("LAKEFS_SECRET_KEY")
+# --- Load Custom CSS ---
+with open("style.css") as f:
+    st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
 
-# Setting S3FileSystem for access LakeFS
+# --- Sidebar Navigation ---
+st.sidebar.image("https://streamlit.io/images/brand/streamlit-logo-secondary-colormark-darktext.png", width=200)
+menu = st.sidebar.radio("Navigation", ["Dashboard", "ML Clustering Map View","Raw Data"], index=0)
+st.sidebar.markdown("---")
+st.sidebar.markdown("**User:** You\nVersion: 1.0")
+st.sidebar.button("Logout")
+
+# --- S3 Access Setup ---
 fs = s3fs.S3FileSystem(
-    key=ACCESS_KEY,
-    secret=SECRET_KEY,
-    client_kwargs={'endpoint_url': lakefs_endpoint}
+    key=os.getenv("LAKEFS_ACCESS_KEY"),
+    secret=os.getenv("LAKEFS_SECRET_KEY"),
+    client_kwargs={"endpoint_url": os.getenv("LAKEFS_ENDPOINT").replace("http", "https")},
+    use_ssl=False
 )
 
-@st.cache_data()
+@st.cache_data(ttl=2400)
 def load_data():
-    lakefs_path = "s3://air-quality/main/airquality.parquet/year=2025"
-    data_list = fs.glob(f"{lakefs_path}/*/*/*/*")
-    df_all = pd.concat([pd.read_parquet(f"s3://{path}", engine="pyarrow", filesystem=fs) for path in data_list], ignore_index=True)
-
-    # Change Data Type
-    df_all['lat'] = pd.to_numeric(df_all['lat'], errors='coerce')
-    df_all['long'] = pd.to_numeric(df_all['long'], errors='coerce')
-    df_all['year'] = df_all['year'].astype(int)
-    df_all['month'] = df_all['month'].astype(int)
-
-    columns_to_convert = ['stationID', 'nameTH', 'nameEN', 'areaTH', 'areaEN', 'stationType']
-    for col in columns_to_convert:
-        df_all[col] = df_all[col].astype(pd.StringDtype())
-
-    df_all.drop_duplicates(inplace=True)
-    df_all['PM25.aqi'] = df_all['PM25.aqi'].mask(df_all['PM25.aqi'] < 0, pd.NA)
-    df_all['PM25.aqi'] = df_all.groupby('stationID')['PM25.aqi'].transform(lambda x: x.fillna(method='ffill'))
-    df_all['timestamp'] = pd.to_datetime(df_all['timestamp'], errors='coerce')
-
-    return df_all
-
-# --- Streamlit Dashboard ---
-
-# --- Style Enhancement ---
-st.markdown("""
-    <style>
-    html, body, [class*="css"] {
-        font-family: 'Inter', sans-serif;
-        background-color: #f0f2f5;
-    }
-    .stApp {
-        background: linear-gradient(120deg, #e0f7fa, #ffffff);
-    }
-    .block-container {
-        padding-top: 2rem;
-    }
-    .stTitle > h1 {
-        font-size: 2.2rem;
-        color: #006064;
-        border-bottom: 3px solid #00bcd4;
-        padding-bottom: 0.5rem;
-        margin-bottom: 1.5rem;
-    }
-    .stSidebar {
-        background-color: #ffffff;
-        border-right: 1px solid #ccc;
-    }
-    .stMetric label {
-        font-size: 1rem;
-        color: #333;
-    }
-    .stMetric div {
-        font-size: 1.5rem;
-        font-weight: bold;
-        color: #00796b;
-    }
-    .stButton button {
-        background-color: #00bcd4;
-        color: white;
-        font-size: 1rem;
-        border-radius: 8px;
-        padding: 0.6rem 1.2rem;
-        transition: background-color 0.3s ease;
-    }
-    .stButton button:hover {
-        background-color: #0097a7;
-    }
-    </style>
-""", unsafe_allow_html=True)
-
-st.set_page_config(page_title='Real-Time Air Quality Dashboard', page_icon='🦄', layout='wide')
-st.title("Air Quality Dashboard from LakeFS 🌎")
+    path = "s3://dsi321-air-quality/main/airquality.parquet/year=2025"
+    files = fs.glob(f"{path}/*/*/*/*")
+    df = pd.concat([pd.read_parquet(f"s3://{f}", filesystem=fs) for f in files], ignore_index=True)
+    df['lat'] = pd.to_numeric(df['lat'], errors='coerce')
+    df['long'] = pd.to_numeric(df['long'], errors='coerce')
+    df['PM25.value'] = pd.to_numeric(df['PM25.value'], errors='coerce')
+    df['province'] = df['areaEN'].str.extract(r",\s*([^,]+)$")[0].str.strip()
+    return df.dropna(subset=['lat', 'long', 'PM25.value'])
 
 df = load_data()
-if df.empty:
-    st.stop()
 
-thai_time = datetime.now(ZoneInfo("Asia/Bangkok"))
-st.caption(f"อัปเดตล่าสุด: {thai_time.strftime('%Y-%m-%d %H:%M:%S')}")
+# --- Title Header ---
+st.title("🌫️ PM2.5 Air Quality Dashboard")
 
-with st.sidebar:
-    st.title("Air4Thai Dashboard")
-    st.header("⚙️ Settings")
-    max_date = df['timestamp'].max().date()
-    min_date = df['timestamp'].min().date()
-    start_date = st.date_input("Start date", min_value=min_date, max_value=max_date, value=min_date)
-    end_date = st.date_input("End date", min_value=min_date, max_value=max_date, value=max_date)
-    station_name = df['nameTH'].dropna().unique().tolist()
-    station_name.sort()
-    station_name.insert(0, "ทั้งหมด")
-    station = st.selectbox("Select Station", station_name)
+# --- Filters (used globally) ---
+col1, col2 = st.columns(2)
 
-df_filtered = df[(df['timestamp'].dt.date >= start_date) & (df['timestamp'].dt.date <= end_date)]
-if station != "ทั้งหมด":
-    df_filtered = df_filtered[df_filtered['nameTH'] == station]
+with col1:
+    selected_province = st.selectbox("📍 Province", ["All"] + sorted(df['province'].dropna().unique().tolist()), key="province")
 
-if df_filtered.empty:
-    st.warning("ไม่พบข้อมูลในช่วงเวลาหรือสถานีที่เลือก")
-    st.stop()
-
-# KPI Section
-k1, k2, k3 = st.columns(3)
-k1.metric("🌡️ ค่าเฉลี่ยคุณภาพ PM2.5 ในอากาศ", f"{df_filtered['PM25.aqi'].mean():.2f}")
-k2.metric("🔥 ค่าเฉลี่ยระดับ PM2.5 ของประเทศไทย", f"{df_filtered['PM25.color_id'].mean():.2f}")
-k3.metric("📍 พื้นที่ที่มีระดับ PM2.5 สูงสุด", df_filtered.groupby('areaTH')['PM25.aqi'].mean().idxmax())
-
-# Visualization
-fig_col1, fig_col2 = st.columns([1.2, 1.8], gap='medium')
-
-if station == "ทั้งหมด":
-    df_selected = df_filtered.copy()
-    title = "PM2.5 AQI ของทุกสถานี"
-else:
-    df_selected = df_filtered[df_filtered['nameTH'] == station]
-    title = f"PM2.5 AQI - สถานี {station}"
-
-with fig_col1:
-    df_map = df_selected.groupby(['stationID', 'nameTH', 'lat', 'long'], as_index=False)['PM25.aqi'].mean()
-    fig_map = px.scatter_geo(
-        df_map,
-        lat='lat', lon='long', color='PM25.aqi',
-        hover_name='nameTH',
-        color_continuous_scale='Turbo',
-        title='แผนที่สถานีตรวจวัด PM2.5 AQI ในประเทศไทย',
-        projection='natural earth'
-    )
-    fig_map.update_geos(lataxis_range=[5, 21], lonaxis_range=[93, 110])
-    fig_map.update_layout(template="plotly_dark", margin={"r":0,"t":40,"l":0,"b":0})
-    st.plotly_chart(fig_map)
-
-with fig_col2:
-    if station == "ทั้งหมด":
-        top_5 = df_selected.groupby('nameTH')['PM25.aqi'].mean().nlargest(5).index
-        df_top5 = df_selected[df_selected['nameTH'].isin(top_5)]
-        fig = px.line(df_top5.sort_values("timestamp"), x='timestamp', y='PM25.aqi', color='nameTH', title=f"Top 5 สถานี AQI สูงสุด")
+with col2:
+    if selected_province == "All":
+        station_options = sorted(df["nameEN"].dropna().unique().tolist())
     else:
-        fig = px.line(df_selected.sort_values("timestamp"), x='timestamp', y='PM25.aqi', title=title)
-    fig.update_layout(xaxis_title='Time', yaxis_title='PM2.5 AQI')
-    st.plotly_chart(fig)
+        station_options = sorted(df[df["province"] == selected_province]["nameEN"].dropna().unique().tolist())
 
-# Classification Section
-st.divider()
-st.subheader("🤖 PM2.5 Level Classification")
+    selected_station = st.selectbox("🏛️ Station", ["All"] + station_options, key="station")
 
-def classify_aqi(value):
-    if value < 50:
-        return 'Low'
-    elif value < 100:
-        return 'Moderate'
+# --- Apply Filter ---
+df_filtered = df.copy()
+if selected_province != "All":
+    df_filtered = df_filtered[df_filtered["province"] == selected_province]
+if selected_station != "All":
+    df_filtered = df_filtered[df_filtered["nameEN"] == selected_station]
+
+# --- Dashboard ---
+if menu == "Dashboard":
+    k1, k3, k4 = st.columns(3)
+
+    with k1:
+        st.markdown(f"""
+            <div class="metric-box">
+                <div class="metric-label">Total Records</div>
+                <div class="metric-value">{len(df_filtered)}</div>
+            </div>
+        """, unsafe_allow_html=True)
+
+    df_valid = df_filtered.dropna(subset=["PM25.value", "province", "nameEN"])
+
+    if not df_valid.empty:
+        max_row = df_valid.loc[df_valid["PM25.value"].idxmax()]
+        min_row = df_valid.loc[df_valid["PM25.value"].idxmin()]
+
+        with k3:
+            st.markdown(f"""
+                <div class="metric-box">
+                    <div class="metric-label">Max PM2.5</div>
+                    <div class="metric-value">{max_row['PM25.value']:.1f}</div>
+                    <div class="metric-delta">📍 {max_row['nameEN']}, {max_row['province']}</div>
+                </div>
+            """, unsafe_allow_html=True)
+
+        with k4:
+            st.markdown(f"""
+                <div class="metric-box">
+                    <div class="metric-label">Min PM2.5</div>
+                    <div class="metric-value">{min_row['PM25.value']:.1f}</div>
+                    <div class="metric-delta">📍 {min_row['nameEN']}, {min_row['province']}</div>
+                </div>
+            """, unsafe_allow_html=True)
+
+    # --- Charts ---
+    st.markdown("---")
+    st.subheader("📊 PM2.5 Insights")
+
+    c1, c2 = st.columns(2)
+
+    with c1:
+        if selected_province == "All":
+            top10 = df_filtered.groupby("province", as_index=False)["PM25.value"].max()
+            y_col = "province"
+            chart_title = "Top 10 Provinces by Max PM2.5"
+        else:
+            top10 = df_filtered.groupby("nameEN", as_index=False)["PM25.value"].max()
+            y_col = "nameEN"
+            chart_title = f"Top 10 Stations in {selected_province} by Max PM2.5"
+
+        top10 = top10.sort_values("PM25.value", ascending=False).head(10)
+        fig1 = px.bar(
+            top10,
+            x="PM25.value",
+            y=y_col,
+            orientation="h",
+            title=chart_title,
+            labels={"PM25.value": "PM2.5", y_col: "Location"},
+            color="PM25.value",
+            color_continuous_scale="reds"
+        )
+        fig1.update_layout(yaxis={'categoryorder': 'total ascending'}, height=400)
+        st.plotly_chart(fig1, use_container_width=True)
+
+    with c2:
+        df_box = df_filtered.dropna(subset=["PM25.value", "province"])
+    
+        if not df_box.empty:
+            # Step 1: Find top 5 provinces by max PM2.5
+            top5_provinces = (
+                df_box.groupby("province", as_index=False)["PM25.value"]
+                .max()
+                .sort_values("PM25.value", ascending=False)
+                .head(5)["province"]
+            )
+
+            # Step 2: Filter only top 5 provinces
+            df_box_top5 = df_box[df_box["province"].isin(top5_provinces)]
+
+            # Step 3: Plot
+            fig2 = px.box(
+                df_box_top5,
+                x="province",
+                y="PM25.value",
+                points="outliers",
+                title="Top 5 Provinces by PM2.5 Distribution",
+                labels={"province": "Province", "PM25.value": "PM2.5"},
+            )
+            fig2.update_layout(xaxis_tickangle=-45, height=450)
+            st.plotly_chart(fig2, use_container_width=True)
+        else:
+            st.info("No valid PM2.5-province data to plot.")
+
+# --- ML View ---
+elif menu == "ML Clustering Map View":
+    st.title("ML View: K-Means Clustering on PM2.5")
+    st.markdown("Each color represents a cluster of stations based on similar PM2.5 levels using K-Means (n=3)")
+
+    df_ml = df_filtered.dropna(subset=["PM25.value", "lat", "long", "nameEN"]).copy()
+    df_ml = df_ml[df_ml["PM25.value"] > 0]  # 🚨 Filter out invalid values
+
+    if df_ml.empty:
+        st.warning("No data available for clustering.")
     else:
-        return 'High'
+        from sklearn.cluster import KMeans
 
-df_filtered['AQI_Class'] = df_filtered['PM25.aqi'].apply(classify_aqi)
-X = df_filtered[['lat', 'long']].fillna(0)
-y = df_filtered['AQI_Class']
+        kmeans = KMeans(n_clusters=3, random_state=42)
+        df_ml["cluster"] = kmeans.fit_predict(df_ml[["PM25.value"]])
 
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-clf = RandomForestClassifier(n_estimators=100, random_state=42)
-clf.fit(X_train, y_train)
-y_pred = clf.predict(X_test)
+        # Sort clusters by average PM2.5 and label them
+        cluster_means = df_ml.groupby("cluster")["PM25.value"].mean().sort_values().reset_index()
+        cluster_mapping = {old: new for new, old in enumerate(cluster_means["cluster"])}
+        df_ml["cluster"] = df_ml["cluster"].map(cluster_mapping)
+        cluster_names = {0: "Low PM2.5", 1: "Moderate PM2.5", 2: "High PM2.5"}
+        df_ml["cluster_label"] = df_ml["cluster"].map(cluster_names)
 
-st.markdown("### 🔍 Classification Report")
-st.text(classification_report(y_test, y_pred))
+        # 💡 Explanation section
+        st.markdown("### 🧠 Clustering Interpretation")
+        cluster_summary = (
+            df_ml.groupby("cluster_label")["PM25.value"]
+            .agg(["count", "min", "max", "mean"])
+            .rename(columns={
+                "count": "Stations",
+                "min": "Min PM2.5",
+                "max": "Max PM2.5",
+                "mean": "Average PM2.5"
+            })
+            .reset_index()
+        )
+        st.dataframe(cluster_summary.style.format({
+            "Min PM2.5": "{:.2f}",
+            "Max PM2.5": "{:.2f}",
+            "Average PM2.5": "{:.2f}"
+        }))
 
-st.markdown("### 📊 Confusion Matrix")
-cm = confusion_matrix(y_test, y_pred, labels=['Low', 'Moderate', 'High'])
-fig_cm = go.Figure(data=go.Heatmap(
-    z=cm,
-    x=['Low', 'Moderate', 'High'],
-    y=['Low', 'Moderate', 'High'],
-    hoverongaps=False,
-    colorscale='Blues'
-))
-fig_cm.update_layout(title="Confusion Matrix", xaxis_title="Predicted", yaxis_title="Actual")
-st.plotly_chart(fig_cm)
+        st.markdown("""
+        **Interpretation of Clusters**  
+        - 🟢 **Low PM2.5**: Stations with relatively clean air.
+        - 🔵 **Moderate PM2.5**: Stations with noticeable but not critical pollution.
+        - 🔴 **High PM2.5**: Stations with high pollution levels that may pose health risks.
 
-st.markdown("### 📎 Distribution of Predicted Classes")
-class_counts = pd.Series(y_pred).value_counts()
-fig_pie = px.pie(values=class_counts.values, names=class_counts.index, title="Predicted AQI Class Distribution")
-st.plotly_chart(fig_pie, use_container_width=True)
+        Clustering is performed using **K-Means** based on the `PM2.5` value across stations.  
+        The algorithm automatically finds natural groupings of pollution levels into 3 categories.
+        """)
+
+        # 📍 Plot
+        center_lat = df_ml["lat"].mean()
+        center_lon = df_ml["long"].mean()
+
+        fig = px.scatter_mapbox(
+            df_ml,
+            lat="lat",
+            lon="long",
+            color="cluster_label",
+            size="PM25.value",
+            hover_name="nameEN",
+            mapbox_style="open-street-map",
+            center={"lat": center_lat, "lon": center_lon},  # ✅ เพิ่ม center ตรงนี้
+            zoom=6,  # ✅ ใส่แค่ครั้งเดียว
+            title="📍 K-Means Clustering of PM2.5 Stations by Pollution Level",
+            color_discrete_map={
+                "Low PM2.5": "green",
+                "Moderate PM2.5": "blue",
+                "High PM2.5": "red"
+            }
+        )
+
+
+        st.plotly_chart(fig, use_container_width=True)
+
+
+# --- Raw Data ---
+elif menu == "Raw Data":
+    st.title("📄 Raw Data Table")
+    st.dataframe(df_filtered)
+    st.download_button("Download CSV", data=df_filtered.to_csv(index=False), file_name="pm25_filtered.csv")
