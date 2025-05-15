@@ -1,6 +1,6 @@
 # Automated ML Pipelines for PM2.5 Forecasting with LakeFS + Prefect
 
-# Project Overview
+Project Overview
 This project is part of the DSI321: BIG DATA INFRASTRUCTURE course. It presents a real-time air quality analytics system focused on PM2.5 levels in Thailand. The data pipeline is orchestrated using Prefect.io, with storage in LakeFS and Parquet format.
 
 A classification model using Random Forest is applied to predict whether air quality is "Good" or "Bad". The results are visualized through an interactive Streamlit dashboard, which includes time-series plots, maps, and classification outputs.
