@@ -3,11 +3,13 @@ import pandas as pd
 import numpy as np
 import streamlit as st
 import plotly.express as px
+import plotly.graph_objects as go
 import s3fs
 from datetime import datetime
 from zoneinfo import ZoneInfo
-from openai import OpenAI
-from langchain.prompts import PromptTemplate
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import classification_report, confusion_matrix
 
 # --- LakeFS Settings ---
 lakefs_endpoint = os.getenv("LAKEFS_ENDPOINT", "http://lakefs-dev:8000")
@@ -22,112 +24,139 @@ fs = s3fs.S3FileSystem(
 
 @st.cache_data()
 def load_data():
-    path = "s3://air-quality/main/airquality.parquet/year=2025"
-    files = fs.glob(f"{path}/*/*/*/*")
-    df = pd.concat([pd.read_parquet(f"s3://{f}", engine="pyarrow", filesystem=fs) for f in files], ignore_index=True)
-    df['lat'] = pd.to_numeric(df['lat'], errors='coerce')
-    df['long'] = pd.to_numeric(df['long'], errors='coerce')
-    df['timestamp'] = pd.to_datetime(df['timestamp'])
-    df['PM25.aqi'] = df['PM25.aqi'].mask(df['PM25.aqi'] < 0, pd.NA)
-    df['PM25.aqi'] = df.groupby('stationID')['PM25.aqi'].transform(lambda x: x.fillna(method='ffill'))
-    return df.drop_duplicates()
+    lakefs_path = "s3://air-quality/main/airquality.parquet/year=2025"
+    data_list = fs.glob(f"{lakefs_path}/*/*/*/*")
+    df_all = pd.concat([pd.read_parquet(f"s3://{path}", engine="pyarrow", filesystem=fs) for path in data_list], ignore_index=True)
+    # Change Data Type
+    df_all['lat'] = pd.to_numeric(df_all['lat'], errors='coerce')
+    df_all['long'] = pd.to_numeric(df_all['long'], errors='coerce')
+    df_all['year'] = df_all['year'].astype(int)
+    df_all['month'] = df_all['month'].astype(int)
+    columns_to_convert = ['stationID', 'nameTH', 'nameEN', 'areaTH', 'areaEN', 'stationType']
+    for col in columns_to_convert:
+        df_all[col] = df_all[col].astype(pd.StringDtype())
+    df_all.drop_duplicates(inplace=True)
+    df_all['PM25.aqi'] = df_all['PM25.aqi'].mask(df_all['PM25.aqi'] < 0, pd.NA)
+    df_all['PM25.aqi'] = df_all.groupby('stationID')['PM25.aqi'].transform(lambda x: x.fillna(method='ffill'))
+    df_all['timestamp'] = pd.to_datetime(df_all['timestamp'])
+    return df_all
 
-# Typhoon API Setup
-typhoon_token = "sk-Rl48oPMyO4lVARDGidyzc8tZLBQQxzNdxtXFQWJrDxJOx1j8"
-client = OpenAI(
-    api_key=typhoon_token,
-    base_url='https://api.opentyphoon.ai/v1'
-)
-
-typhoon_prompt = PromptTemplate(
-    input_variables=["context"],
-    template="""
-    คุณคือนักวิเคราะห์ข้อมูลสิ่งแวดล้อม สรุปสถานการณ์คุณภาพอากาศโดยใช้โครงสร้าง:
-    
-    {context}
-
-    📌 Executive Summary
-    🔍 Key Insights
-    ⚠️ Policy Recommendations
-    📈 Trend Forecast
-    """
-)
-
-def generate_insight(summary):
-    prompt = typhoon_prompt.format(context=summary)
-    response = client.chat.completions.create(
-        model="typhoon-v2-70b-instruct",
-        messages=[{"role": "user", "content": prompt}],
-        max_tokens=2048,
-        temperature=0.7,
-    )
-    return response.choices[0].message.content
+def filter_data(df, start_date, end_date, station):
+    df_filtered = df.copy()
+    df_filtered = df_filtered[
+        (df_filtered['timestamp'].dt.date >= start_date) &
+        (df_filtered['timestamp'].dt.date <= end_date)
+    ]
+    if station != "ทั้งหมด":
+        df_filtered = df_filtered[df_filtered['nameTH'] == station]
+    df_filtered = df_filtered[df_filtered['PM25.aqi'] >= 0]
+    return df_filtered
 
 # --- Streamlit UI Setup ---
-st.set_page_config("Air Quality Insights", layout="wide")
-st.title("☁️ Interactive Air Quality Dashboard")
+st.set_page_config(page_title='Real-Time Air Quality Dashboard', page_icon='🦄', layout='wide')
+st.title("Air Quality Dashboard from LakeFS 🌎")
 
-st.caption(f"Updated: {datetime.now(ZoneInfo('Asia/Bangkok')).strftime('%Y-%m-%d %H:%M:%S')}")
 df = load_data()
+thai_time = datetime.now(ZoneInfo("Asia/Bangkok"))
+st.caption(f"อัปเดตล่าสุด: {thai_time.strftime('%Y-%m-%d %H:%M:%S')}")
 
-stations = sorted(df['nameTH'].dropna().unique().tolist())
-stations.insert(0, "ทั้งหมด")
+with st.sidebar:
+    st.title("Air4Thai Dashboard")
+    st.header("⚙️ Settings")
+    max_date = df['timestamp'].max().date()
+    min_date = df['timestamp'].min().date()
+    default_start_date = min_date
+    default_end_date = max_date
+    start_date = st.date_input("Start date", default_start_date, min_value=min_date, max_value=max_date)
+    end_date = st.date_input("End date", default_end_date, min_value=min_date, max_value=max_date)
+    station_name = df['nameTH'].dropna().unique().tolist()
+    station_name.sort()
+    station_name.insert(0, "ทั้งหมด")
+    station = st.selectbox("Select Station", station_name)
 
-with st.container():
-    col1, col2, col3 = st.columns([1, 1, 2])
-    start_date = col1.date_input("📅 Start Date", df['timestamp'].min().date())
-    end_date = col2.date_input("📅 End Date", df['timestamp'].max().date())
-    station = col3.selectbox("🏢 Select Station", stations)
+df_filtered = filter_data(df, start_date, end_date, station)
 
-filtered = df.copy()
-filtered = filtered[(filtered['timestamp'].dt.date >= start_date) & (filtered['timestamp'].dt.date <= end_date)]
-if station != "ทั้งหมด":
-    filtered = filtered[filtered['nameTH'] == station]
-
-if filtered.empty:
-    st.warning("ไม่พบข้อมูลในช่วงเวลาที่เลือก")
+if df_filtered.empty:
+    st.warning("ไม่พบข้อมูลในช่วงเวลาหรือสถานีที่เลือก")
     st.stop()
 
-# --- KPI Cards ---
-k1, k2, k3 = st.columns(3)
-k1.metric("🌡️ PM2.5 AQI เฉลี่ย", f"{filtered['PM25.aqi'].mean():.2f}")
-k2.metric("📍 สถานีที่มีค่า AQI สูงสุด", filtered.groupby('nameTH')['PM25.aqi'].mean().idxmax())
-k3.metric("🗓️ จำนวนข้อมูล", f"{len(filtered)} records")
+# KPI Section
+kpi1, kpi2, kpi3 = st.columns(3)
+kpi1.metric("🌡️ ค่าเฉลี่ยคุณภาพ PM2.5 ในอากาศ", f"{df_filtered['PM25.aqi'].mean():.2f}")
+kpi2.metric("🔥 ค่าเฉลี่ยระดับ PM2.5 ของประเทศไทย", f"{df_filtered['PM25.color_id'].mean():.2f}")
+kpi3.metric("📍 พื้นที่ที่มีระดับ PM2.5 สูงสุด", df_filtered.groupby('areaTH')['PM25.aqi'].mean().idxmax())
 
-# --- Charts ---
-st.subheader("🌏 PM2.5 Map")
-map_df = filtered.groupby(['stationID', 'nameTH', 'lat', 'long'], as_index=False)['PM25.aqi'].mean()
-fig_map = px.scatter_geo(
-    map_df,
-    lat='lat', lon='long', color='PM25.aqi',
-    hover_name='nameTH',
-    title='ค่าเฉลี่ย PM2.5 รายสถานี',
-    color_continuous_scale='Plasma',
-    projection='natural earth'
-)
-st.plotly_chart(fig_map, use_container_width=True)
+# Visualization
+fig_col1, fig_col2 = st.columns([1.2, 1.8], gap='medium')
 
-st.subheader("📈 AQI Timeline")
 if station == "ทั้งหมด":
-    top_stations = filtered.groupby('nameTH')['PM25.aqi'].mean().nlargest(5).index
-    df_top = filtered[filtered['nameTH'].isin(top_stations)]
-    fig_line = px.line(df_top.sort_values("timestamp"), x='timestamp', y='PM25.aqi', color='nameTH')
+    df_selected = df_filtered.copy()
+    title = "PM2.5 AQI ของทุกสถานี"
 else:
-    fig_line = px.line(filtered.sort_values("timestamp"), x='timestamp', y='PM25.aqi', title=f"แนวโน้ม AQI - {station}")
-st.plotly_chart(fig_line, use_container_width=True)
+    df_selected = df_filtered[df_filtered['nameTH'] == station]
+    title = f"PM2.5 AQI - สถานี {station}"
 
-# --- LLM Insight ---
+with fig_col1:
+    df_map = df_selected.groupby(['stationID', 'nameTH', 'lat', 'long'], as_index=False)['PM25.aqi'].mean()
+    fig_map = px.scatter_geo(
+        df_map,
+        lat='lat', lon='long', color='PM25.aqi',
+        hover_name='nameTH',
+        color_continuous_scale='Turbo',
+        title='แผนที่สถานีตรวจวัด PM2.5 AQI ในประเทศไทย',
+        projection='natural earth'
+    )
+    fig_map.update_geos(lataxis_range=[5, 21], lonaxis_range=[93, 110])
+    fig_map.update_layout(template="plotly_dark", margin={"r":0,"t":40,"l":0,"b":0})
+    st.plotly_chart(fig_map)
+
+with fig_col2:
+    if station == "ทั้งหมด":
+        top_5 = df_selected.groupby('nameTH')['PM25.aqi'].mean().nlargest(5).index
+        df_top5 = df_selected[df_selected['nameTH'].isin(top_5)]
+        fig = px.line(df_top5.sort_values("timestamp"), x='timestamp', y='PM25.aqi', color='nameTH', title=f"Top 5 สถานี AQI สูงสุด")
+    else:
+        fig = px.line(df_selected.sort_values("timestamp"), x='timestamp', y='PM25.aqi', title=title)
+    fig.update_layout(xaxis_title='Time', yaxis_title='PM2.5 AQI')
+    st.plotly_chart(fig)
+
+# Classification Section
 st.divider()
-st.subheader("💡 AI Insight Generator")
+st.subheader("🤖 PM2.5 Level Classification")
 
-if st.button("Generate Insight with Typhoon AI"):
-    summary = filtered.describe(include='all').to_string()
-    with st.spinner("กำลังวิเคราะห์ข้อมูล..."):
-        insight = generate_insight(summary)
-        st.success("วิเคราะห์สำเร็จแล้ว!")
-        st.markdown(f"""
-        <div style='padding: 1rem; background-color: #eef2f6; border-left: 5px solid #4f46e5; border-radius: 8px;'>
-        <h4>📊 ผลการวิเคราะห์</h4>
-        <div>{insight}</div>
-        </div>
-        """, unsafe_allow_html=True)
+def classify_aqi(value):
+    if value < 50:
+        return 'Low'
+    elif value < 100:
+        return 'Moderate'
+    else:
+        return 'High'
+
+df_filtered['AQI_Class'] = df_filtered['PM25.aqi'].apply(classify_aqi)
+X = df_filtered[['lat', 'long']].fillna(0)
+y = df_filtered['AQI_Class']
+
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+clf = RandomForestClassifier(n_estimators=100, random_state=42)
+clf.fit(X_train, y_train)
+y_pred = clf.predict(X_test)
+
+st.markdown("### 🔍 Classification Report")
+st.text(classification_report(y_test, y_pred))
+
+st.markdown("### 📊 Confusion Matrix")
+cm = confusion_matrix(y_test, y_pred, labels=['Low', 'Moderate', 'High'])
+fig_cm = go.Figure(data=go.Heatmap(
+    z=cm,
+    x=['Low', 'Moderate', 'High'],
+    y=['Low', 'Moderate', 'High'],
+    hoverongaps=False,
+    colorscale='Blues'
+))
+fig_cm.update_layout(title="Confusion Matrix", xaxis_title="Predicted", yaxis_title="Actual")
+st.plotly_chart(fig_cm)
+
+st.markdown("### 📎 Distribution of Predicted Classes")
+class_counts = pd.Series(y_pred).value_counts()
+fig_pie = px.pie(values=class_counts.values, names=class_counts.index, title="Predicted AQI Class Distribution")
+st.plotly_chart(fig_pie, use_container_width=True)
