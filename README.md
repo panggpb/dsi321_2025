@@ -52,7 +52,7 @@ The dashboard includes the following visual components:
 
 ## 📄 Field Descriptions
 |Column Name|	Description|
--
+|-----------|------------|
 |timestamp|	ISO format timestamp of data collection|
 |stationID|	Unique code identifying each monitoring station|
 |nameTH|	Station name in Thai|
@@ -71,7 +71,7 @@ The dashboard includes the following visual components:
 This project integrates a range of modern technologies to achieve real-time data processing, visualization, and machine learning classification:
 
 |Category|	Tools / Frameworks|
-----------------------------
+|--------|--------------------|
 |Programming|	Python 3.9|
 |Data Handling|	pandas, numpy|
 |Data Storage|	Parquet format (via PyArrow), LakeFS (object versioning)|
