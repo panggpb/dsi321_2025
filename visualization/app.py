@@ -11,11 +11,12 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import classification_report, confusion_matrix
 
-# --- LakeFS Settings ---
+# Set up environments of LakeFS
 lakefs_endpoint = os.getenv("LAKEFS_ENDPOINT", "http://lakefs-dev:8000")
 ACCESS_KEY = os.getenv("LAKEFS_ACCESS_KEY")
 SECRET_KEY = os.getenv("LAKEFS_SECRET_KEY")
 
+# Setting S3FileSystem for access LakeFS
 fs = s3fs.S3FileSystem(
     key=ACCESS_KEY,
     secret=SECRET_KEY,
@@ -36,38 +37,6 @@ def load_data():
     for col in columns_to_convert:
         df_all[col] = df_all[col].astype(pd.StringDtype())
 
-    df_all.drop_duplicates(inplace=True)
-    df_all['PM25.aqi'] = df_all['PM25.aqi'].mask(df_all['PM25.aqi'] < 0, pd.NA)
-    # Fill value "Previous Record" Group By stationID
-    df_all['PM25.aqi'] = df_all.groupby('stationID')['PM25.aqi'].transform(lambda x: x.fillna(method='ffill'))
-    return df_all
-
-def filter_data(df, start_date, end_date, station):
-    df_filtered = df.copy()
-
-    # Filter by date
-    df_filtered = df_filtered[
-        (df_filtered['timestamp'].dt.date >= start_date) &
-        (df_filtered['timestamp'].dt.date <= end_date)
-    ]
-    # Filter by station
-    if station != "ทั้งหมด":
-        df_filtered = df_filtered[df_filtered['nameTH'] == station]
-
-    # Remove invalid AQI
-    df_filtered = df_filtered[df_filtered['PM25.aqi'] >= 0]
-
-    return df_filtered
-
-def generate_response(context):
-    system_prompt = typhoon_prompt.format(context=context)
-    chat_completion = client.chat.completions.create(
-        model="typhoon-v2-70b-instruct",
-        messages=[{"role": "user", "content": system_prompt}],
-        max_tokens=2048,
-        temperature=0.7,
-    )
-    return chat_completion.choices[0].message.content
 
 # --- Streamlit Dashboard ---
 
