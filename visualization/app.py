@@ -24,28 +24,50 @@ fs = s3fs.S3FileSystem(
 
 @st.cache_data()
 def load_data():
-    lakefs_path = "s3://air-quality/main/airquality.parquet"
-    data_list = fs.glob(f"{lakefs_path}/year=*/month=*/day=*/hour=*/*.parquet")
-
-    if not data_list:
-        st.error("❌ ไม่พบไฟล์ข้อมูลใน LakeFS path ที่กำหนด")
-        return pd.DataFrame()
-
-    df_all = pd.concat([
-        pd.read_parquet(f"s3://{path}", engine="pyarrow", filesystem=fs) for path in data_list
-    ], ignore_index=True)
-
-    df_all['timestamp'] = pd.to_datetime(df_all['timestamp'])
-    df_all['PM25.aqi'] = df_all['PM25.aqi'].mask(df_all['PM25.aqi'] < 0, pd.NA)
-    df_all['PM25.aqi'] = df_all.groupby('stationID')['PM25.aqi'].transform(lambda x: x.fillna(method='ffill'))
-
+    lakefs_path = "s3://air-quality/main/airquality.parquet/year=2025"
+    data_list = fs.glob(f"{lakefs_path}/*/*/*/*")
+    df_all = pd.concat([pd.read_parquet(f"s3://{path}", engine="pyarrow", filesystem=fs) for path in data_list], ignore_index=True)
+    # Change Data Type
     df_all['lat'] = pd.to_numeric(df_all['lat'], errors='coerce')
     df_all['long'] = pd.to_numeric(df_all['long'], errors='coerce')
-    for col in ['stationID', 'nameTH', 'nameEN', 'areaTH', 'areaEN', 'stationType']:
+    df_all['year'] = df_all['year'].astype(int) 
+    df_all['month'] = df_all['month'].astype(int)
+    columns_to_convert = ['stationID', 'nameTH', 'nameEN', 'areaTH', 'areaEN', 'stationType']
+    for col in columns_to_convert:
         df_all[col] = df_all[col].astype(pd.StringDtype())
 
     df_all.drop_duplicates(inplace=True)
+    df_all['PM25.aqi'] = df_all['PM25.aqi'].mask(df_all['PM25.aqi'] < 0, pd.NA)
+    # Fill value "Previous Record" Group By stationID
+    df_all['PM25.aqi'] = df_all.groupby('stationID')['PM25.aqi'].transform(lambda x: x.fillna(method='ffill'))
     return df_all
+
+def filter_data(df, start_date, end_date, station):
+    df_filtered = df.copy()
+
+    # Filter by date
+    df_filtered = df_filtered[
+        (df_filtered['timestamp'].dt.date >= start_date) &
+        (df_filtered['timestamp'].dt.date <= end_date)
+    ]
+    # Filter by station
+    if station != "ทั้งหมด":
+        df_filtered = df_filtered[df_filtered['nameTH'] == station]
+
+    # Remove invalid AQI
+    df_filtered = df_filtered[df_filtered['PM25.aqi'] >= 0]
+
+    return df_filtered
+
+def generate_response(context):
+    system_prompt = typhoon_prompt.format(context=context)
+    chat_completion = client.chat.completions.create(
+        model="typhoon-v2-70b-instruct",
+        messages=[{"role": "user", "content": system_prompt}],
+        max_tokens=2048,
+        temperature=0.7,
+    )
+    return chat_completion.choices[0].message.content
 
 # --- Streamlit Dashboard ---
 
