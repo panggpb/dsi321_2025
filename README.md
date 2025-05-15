@@ -22,7 +22,7 @@ Finally, everything comes together in a Streamlit dashboard that we built to sho
 - Visualization: Create interactive charts and maps to display air quality trends.
 - Machine Learning: Implement a classification model to predict air quality status.
 
-## 📈 Visualizations
+## Visualizations
 
 The dashboard includes the following visual components:
 
@@ -50,7 +50,7 @@ The dashboard includes the following visual components:
 }
 ```
 
-## 📄 Field Descriptions
+## Field Descriptions
 |Column Name|	Description|
 |-----------|---------------------------------------------------|
 |timestamp  |	ISO format timestamp of data collection|
@@ -63,7 +63,8 @@ The dashboard includes the following visual components:
 |lat, long  |	Geographic coordinates of the station|
 |PM25.color_id|	Visual indicator for AQI level coloring|
 |PM25.aqi|	PM2.5 Air Quality Index (numeric value)|
-|year, month, day, hour|	Timestamp components extracted for temporal analysis|
+|year, month, day, hour|	Timestamp components extracted for temporal analysis|  
+
 **Key columns** (timestamp, stationID, lat, long, PM25.aqi) are mandatory for quality assurance and must be non-null. Schema validation ensures data completeness and correct typing for reliable modeling and visualization.
 
 ## Getting Started
@@ -91,7 +92,7 @@ python src/pipeline.py deploy
 python deploy.py
 ```
 
-## ⚙️ Technologies Used
+## Technologies Used
 
 This project integrates a range of modern technologies to achieve real-time data processing, visualization, and machine learning classification:
 
