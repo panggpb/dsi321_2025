@@ -25,7 +25,7 @@ fs = s3fs.S3FileSystem(
 
 @st.cache_data()
 def load_data():
-    lakefs_path = "s3://air-quality/main/airquality.parquet/year=2025"
+    lakefs_path = "s3://air-quality/main/airquality.parquet/year=2025/<X>/<Y>/<Z>/<W>"
     data_list = fs.glob(f"{lakefs_path}/*/*/*/*")
     df_all = pd.concat([pd.read_parquet(f"s3://{path}", engine="pyarrow", filesystem=fs) for path in data_list], ignore_index=True)
     # Change Data Type
