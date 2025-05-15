@@ -52,34 +52,19 @@ The dashboard includes the following visual components:
 
 ## 📄 Field Descriptions
 |Column Name|	Description|
-|-----------|------------|
-|timestamp|	ISO format timestamp of data collection|
-|stationID|	Unique code identifying each monitoring station|
-|nameTH|	Station name in Thai|
-|nameEN|	Station name in English|
-|areaTH|	Area name in Thai|
-|areaEN|	Area name in English|
+|-----------|---------------------------------------------------|
+|timestamp  |	ISO format timestamp of data collection|
+|stationID  |	Unique code identifying each monitoring station|
+|nameTH     |	Station name in Thai|
+|nameEN     |	Station name in English|
+|areaTH     |	Area name in Thai|
+|areaEN     |	Area name in English|
 |stationType|	Type of station (e.g., general, roadside)|
-|lat, long|	Geographic coordinates of the station|
+|lat, long  |	Geographic coordinates of the station|
 |PM25.color_id|	Visual indicator for AQI level coloring|
 |PM25.aqi|	PM2.5 Air Quality Index (numeric value)|
 |year, month, day, hour|	Timestamp components extracted for temporal analysis|
 **Key columns** (timestamp, stationID, lat, long, PM25.aqi) are mandatory for quality assurance and must be non-null. Schema validation ensures data completeness and correct typing for reliable modeling and visualization.
-
-## ⚙️ Technologies Used
-
-This project integrates a range of modern technologies to achieve real-time data processing, visualization, and machine learning classification:
-
-|Category|	Tools / Frameworks|
-|--------|--------------------|
-|Programming|	Python 3.9|
-|Data Handling|	pandas, numpy|
-|Data Storage|	Parquet format (via PyArrow), LakeFS (object versioning)|
-|Visualization|	Streamlit, matplotlib, seaborn, plotly, pydeck|
-|Machine Learning| scikit-learn (Random Forest Classifier)|
-|Web Dashboard|	Streamlit|
-|File| System / API	s3fs (S3 access for LakeFS integration)|
-|Version Control|	Git, GitHub|
 
 ## Getting Started
 ### Prerequisites
@@ -105,6 +90,21 @@ Stramlit : http://localhost:8501
 python src/pipeline.py deploy
 python deploy.py
 ```
+
+## ⚙️ Technologies Used
+
+This project integrates a range of modern technologies to achieve real-time data processing, visualization, and machine learning classification:
+
+|Category|	Tools / Frameworks|
+|--------|--------------------|
+|Programming|	Python 3.9|
+|Data Handling|	pandas, numpy|
+|Data Storage|	Parquet format (via PyArrow), LakeFS (object versioning)|
+|Visualization|	Streamlit, matplotlib, seaborn, plotly, pydeck|
+|Machine Learning| scikit-learn (Random Forest Classifier)|
+|Web Dashboard|	Streamlit|
+|File| System / API	s3fs (S3 access for LakeFS integration)|
+|Version Control|	Git, GitHub|
 
 
 
