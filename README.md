@@ -1,4 +1,7 @@
 # Automated ML Pipelines for PM2.5 Forecasting with LakeFS + Prefect
+**Author**: Intita Pitpongkul  
+**Course**: DSI321 – Big Data Infrastructure  
+**Institution**: Data Science and Innovation, Thammasat University
 
 ## Project Overview
 This project is part of the DSI321: BIG DATA INFRASTRUCTURE course. It presents a real-time air quality analytics system focused on PM2.5 levels in Thailand. The data pipeline is orchestrated using Prefect.io, with storage in LakeFS and Parquet format.
