@@ -1,4 +1,4 @@
-# Automated ML Pipelines for PM2.5 Forecasting with LakeFS + Prefect
+# Automated ML Pipelines for PM2.5 with LakeFS + Prefect
 **Author**: Intita Pitpongkul  
 **Course**: DSI321 – Big Data Infrastructure  
 **Institution**: Data Science and Innovation, Thammasat University
