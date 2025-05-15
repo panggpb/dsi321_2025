@@ -48,6 +48,52 @@ def load_data():
     return df_all
 
 # --- Streamlit Dashboard ---
+
+# --- Style Enhancement ---
+st.markdown("""
+    <style>
+    html, body, [class*="css"]  {
+        font-family: 'Segoe UI', sans-serif;
+        background-color: #f7f9fc;
+    }
+    .stApp {
+        background: linear-gradient(to bottom, #f0f4ff 0%, #ffffff 40%);
+    }
+    .block-container {
+        padding-top: 2rem;
+    }
+    .stTitle > h1 {
+        font-size: 2.5rem;
+        color: #0f4c81;
+        border-bottom: 2px solid #0f4c81;
+        padding-bottom: 0.5rem;
+        margin-bottom: 1.5rem;
+    }
+    .stSidebar {
+        background-color: #ffffff;
+        border-right: 1px solid #ddd;
+    }
+    .stMetric label {
+        font-size: 1.1rem;
+        color: #555;
+    }
+    .stMetric div {
+        font-size: 1.75rem;
+        font-weight: bold;
+        color: #0f4c81;
+    }
+    .stButton button {
+        background-color: #0f4c81;
+        color: white;
+        font-size: 1rem;
+        border-radius: 0.5rem;
+        padding: 0.5rem 1.2rem;
+    }
+    .stButton button:hover {
+        background-color: #125d99;
+    }
+    </style>
+""", unsafe_allow_html=True)
 st.set_page_config(page_title='Real-Time Air Quality Dashboard', page_icon='🦄', layout='wide')
 st.title("Air Quality Dashboard from LakeFS 🌎")
 
