@@ -52,7 +52,7 @@ The dashboard includes the following visual components:
 
 ## 📄 Field Descriptions
 |Column Name|	Description|
----------------------------
+-
 |timestamp|	ISO format timestamp of data collection|
 |stationID|	Unique code identifying each monitoring station|
 |nameTH|	Station name in Thai|
