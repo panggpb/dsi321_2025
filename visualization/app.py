@@ -30,36 +30,44 @@ fs = s3fs.S3FileSystem(
 def load_data():
     lakefs_path = "s3://dsi321-record-air-quality/main/airquality.parquet/year=2025"
     data_list = fs.glob(f"{lakefs_path}/*/*/*/*")
-    df_all = pd.concat([pd.read_parquet(f"s3://{path}", engine="pyarrow", filesystem=fs) for path in data_list], ignore_index=True)
-    # Change Data Type
+    df_all = pd.concat(
+        [pd.read_parquet(f"s3://{path}", engine="pyarrow", filesystem=fs) for path in data_list],
+        ignore_index=True
+    )
+
+    df_all['timestamp'] = pd.to_datetime(df_all['timestamp'])  # ✅ convert timestamp to datetime
     df_all['lat'] = pd.to_numeric(df_all['lat'], errors='coerce')
     df_all['long'] = pd.to_numeric(df_all['long'], errors='coerce')
     df_all['year'] = df_all['year'].astype(int) 
     df_all['month'] = df_all['month'].astype(int)
+
     columns_to_convert = ['stationID', 'nameTH', 'nameEN', 'areaTH', 'areaEN', 'stationType']
     for col in columns_to_convert:
         df_all[col] = df_all[col].astype(pd.StringDtype())
 
     df_all.drop_duplicates(inplace=True)
     df_all['PM25.aqi'] = df_all['PM25.aqi'].mask(df_all['PM25.aqi'] < 0, pd.NA)
-    # Fill value "Previous Record" Group By stationID
     df_all['PM25.aqi'] = df_all.groupby('stationID')['PM25.aqi'].transform(lambda x: x.fillna(method='ffill'))
+
     return df_all
 
 def filter_data(df, start_date, end_date, station):
     df_filtered = df.copy()
 
     # Filter by date
+def filter_data(df, start_date, end_date, station):
+    df_filtered = df.copy()
+
+    df_filtered["date_only"] = df_filtered["timestamp"].dt.date  # ✅ convert to date for comparison
+
     df_filtered = df_filtered[
-        (df_filtered['timestamp'].dt.date >= start_date) &
-        (df_filtered['timestamp'].dt.date <= end_date)
+        (df_filtered['date_only'] >= start_date) &
+        (df_filtered['date_only'] <= end_date)
     ]
 
-    # Filter by station
     if station != "ทั้งหมด":
         df_filtered = df_filtered[df_filtered['nameTH'] == station]
 
-    # Remove invalid AQI
     df_filtered = df_filtered[df_filtered['PM25.aqi'] >= 0]
 
     return df_filtered
@@ -108,35 +116,44 @@ with left:
     df_filtered = filter_data(df, start_date, end_date, station)
 
 with right:
-    # ----- Section: ML Model -----
-    st.header("🤖 Air Quality Classification Model")
+    st.markdown("### 🤖 Air Quality Classification Model")
+    st.markdown(
+        "<div style='background-color:#f2f9ff; padding:20px; border-radius:10px;'>",
+        unsafe_allow_html=True
+    )
+
     if len(df_filtered) > 50:
+        # สร้างคอลัมน์ AQ_Status ถ้ายังไม่มี
         if "AQ_Status" not in df_filtered.columns:
             df_filtered["AQ_Status"] = (df_filtered["PM25.aqi"] > 100).astype(int)
 
+        # ลบแถวที่มีค่าว่างใน feature สำคัญ
         df_filtered = df_filtered.dropna(subset=["AQ_Status", "lat", "long", "hour", "month"])
 
+        # เช็กว่ามี 2 class ให้เทรนไหม
         if df_filtered["AQ_Status"].nunique() < 2:
-            st.warning("⚠️ Need at least 2 classes to train.")
+            st.warning("⚠️ ยังมีข้อมูลเพียงคลาสเดียว (Good หรือ Bad Air) ไม่สามารถเทรนโมเดลได้ค่ะ")
         else:
             try:
                 model, acc, X_test, y_test = train_rf_model(df_filtered)
                 pred = model.predict(X_test)
 
-                met1, met2 = st.columns(2)
-                with met1:
-                    st.metric("Model Accuracy", f"{acc:.2%}")
-                with met2:
-                    st.metric("Data Records", len(df_filtered))
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.metric("✅ Model Accuracy", f"{acc:.2%}")
+                with col2:
+                    st.metric("📦 Records Used", len(df_filtered))
 
-                st.markdown("**📋 Classification Report:**")
-                st.text(classification_report(y_test, pred, target_names=["Good Air", "Bad Air"]))
+                st.markdown("#### 📋 Classification Report")
+                st.code(classification_report(y_test, pred, target_names=["Good Air", "Bad Air"]))
 
-                st.bar_chart(df_filtered.groupby("AQ_Status")["PM25.aqi"].mean())
+
             except Exception as e:
                 st.error(f"❌ Model training failed: {e}")
     else:
-        st.warning("⚠️ Not enough data for model. Try wider date range.")
+        st.warning("⚠️ ข้อมูลมีน้อยเกินไป ลองเลือกวันที่ให้กว้างขึ้นเพื่อเทรนโมเดลนะคะ")
+
+    st.markdown("</div>", unsafe_allow_html=True)
 
     # ----- Section: Graphs with blue backgrounds -----
     st.header("📊 Air Quality Visualizations")
