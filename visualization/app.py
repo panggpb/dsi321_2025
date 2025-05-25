@@ -145,7 +145,16 @@ with right:
                     st.metric("📦 Records Used", len(df_filtered))
 
                 st.markdown("#### 📋 Classification Report")
-                st.code(classification_report(y_test, pred, target_names=["Good Air", "Bad Air"]))
+
+                report_dict = classification_report(y_test, pred, target_names=["Good Air", "Bad Air"], output_dict=True)
+                report_df = pd.DataFrame(report_dict).transpose()
+
+                st.dataframe(report_df.style.format({
+                    "precision": "{:.2f}",
+                    "recall": "{:.2f}",
+                    "f1-score": "{:.2f}",
+                    "support": "{:.0f}"
+                }))
 
 
             except Exception as e:
