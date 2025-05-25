@@ -25,6 +25,16 @@ Insights are delivered through an interactive Streamlit dashboard, which display
 - Visualization: Create interactive charts and maps to display air quality trends.
 - Machine Learning: Implement a classification model to predict air quality status.
 
+# Dataset Preparation and Integration  
+The system automatically retrieves near real-time PM2.5 air quality data from the Air4Thai API, maintained by Thailand’s Pollution Control Department. Once ingested, the dataset undergoes several processing steps to ensure usability and structure:  
+
+<img width="1202" alt="Screenshot 2568-05-25 at 4 51 15 PM" src="https://github.com/user-attachments/assets/85b0fcbf-6087-4a9b-88f3-9c3ee69a2185" />  
+- Data Cleaning: Invalid readings (e.g., negative PM2.5 values) are removed or forward-filled based on station history.
+- Time-based Partitioning: Data is organized into a hierarchical folder structure by year/month/day/hour for efficient querying.
+- Parquet Storage on lakeFS: Cleaned records are saved in partitioned Parquet format within lakeFS, enabling version control and reproducibility.
+- Schema Validation: A defined schema (schema.md) is used to validate data types and column names, minimizing inconsistencies and preserving pipeline stability over time.
+
+This pipeline ensures that the data is always well-structured, traceable, and ready for downstream use in dashboards and modeling.
 
 # Data Schema
 ```json
