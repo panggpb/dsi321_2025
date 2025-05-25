@@ -107,12 +107,12 @@ This dashboard presents near real-time PM2.5 air quality data across Thailand th
 - Pie Chart: Represents the proportion of 'Good' vs. 'Bad' air quality statuses.
 - Dropdown filters (Station / Date-Time)
 
-# 🔍 Filtering Options: Province & Station  
+### 🔍 Filtering Options: Province & Station  
 Users can select a Province and specific Monitoring Station via dropdown filters in the sidebar. All charts update dynamically based on these selections, allowing for customized exploration.  
 Insight: For example, selecting “Bangkok” immediately filters the dashboard to show data trends from inner-city stations, helping users monitor local air quality.  
 <img width="275" alt="Screenshot 2568-05-25 at 4 37 05 PM" src="https://github.com/user-attachments/assets/637e8a8b-5a76-489f-b9fc-5591d45cd32b" />  
 
-# ✅ KPI Scorecards (Top Summary)  
+### ✅ KPI Scorecards (Top Summary)  
 
 At the top of the main dashboard, users see an overview of:
 	•	Model Accuracy from the Random Forest classification
@@ -122,7 +122,7 @@ These values automatically update with filtered data, reflecting the dashboard�
 Insight: The model achieved ~95% accuracy on filtered data, distinguishing between “Good” and “Bad” air quality based on PM2.5 > 100 µg/m³.  
 <img width="664" alt="Screenshot 2568-05-25 at 4 39 11 PM" src="https://github.com/user-attachments/assets/0b1ba769-2b34-41e2-a6df-31b4afdb8ad9" />  
 
-# 📊 Daily Average PM2.5 (Bar Chart)  
+### 📊 Daily Average PM2.5 (Bar Chart)  
 
 Displays the average PM2.5 level per day, plotted as vertical bars. A red dashed line marks the hazardous threshold at 100 µg/m³.  
 
@@ -130,7 +130,7 @@ Insight: Users can detect daily pollution trends, and visually compare spikes ac
 
 <img width="542" alt="Screenshot 2568-05-25 at 4 40 12 PM" src="https://github.com/user-attachments/assets/4d01403a-eb06-436b-9af0-01d0aa00b945" />  
 
-# 🧯 PM2.5 Heatmap (Hour × Day)  
+### 🧯 PM2.5 Heatmap (Hour × Day)  
 
 A density heatmap shows PM2.5 variation across hours and weekdays.
 	•	X-axis: Day of week
@@ -140,7 +140,7 @@ A density heatmap shows PM2.5 variation across hours and weekdays.
 Insight: Morning and evening rush hours tend to have higher PM2.5, especially on weekdays like Monday and Friday.  
 <img width="515" alt="Screenshot 2568-05-25 at 4 41 07 PM" src="https://github.com/user-attachments/assets/b51b12e2-f5c9-4771-a06f-0640052a343e" />  
 
-# 🗺️ Station Map View (Mapbox)  
+### 🗺️ Station Map View (Mapbox)  
 
 Each station is plotted on an interactive map, where:
 	•	Marker size and color represent PM2.5 level
@@ -149,7 +149,7 @@ Each station is plotted on an interactive map, where:
 Insight: High-PM2.5 stations (e.g., near industrial zones or highways) are easily spotted. This spatial insight supports targeted environmental intervention.  
 <img width="524" alt="Screenshot 2568-05-25 at 4 41 53 PM" src="https://github.com/user-attachments/assets/32d56266-fc35-467e-b49c-35277e4f8961" />  
 
-# 🎯 Pie Chart: Proportion of Air Quality  
+### 🎯 Pie Chart: Proportion of Air Quality  
 
 This chart summarizes how many records fall under:
 	•	Good Air (PM2.5 ≤ 100)
@@ -157,7 +157,7 @@ This chart summarizes how many records fall under:
  
 Insight: Users get an immediate sense of the air quality distribution during their selected date range.  
 
-# 🤖 Machine Learning: Air Quality Classification  
+### 🤖 Machine Learning: Air Quality Classification  
 
 The project uses a Random Forest Classifier to classify whether a given record’s PM2.5 level is “Good” or “Bad” using features like:
 	•	Latitude / Longitude
@@ -185,7 +185,7 @@ This project integrates a range of modern technologies to achieve real-time data
 |Version Control|	Git, GitHub|
 
 
-# Conclusion  
+## Conclusion  
 
 This project demonstrates the successful development of a real-time air quality monitoring pipeline using open-source technologies including Prefect, lakeFS, Docker, and Streamlit. By integrating automated data ingestion with machine learning classification and interactive dashboards, it enables:
 	•	Daily monitoring of PM2.5 levels across Thailand
