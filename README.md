@@ -27,12 +27,19 @@ Insights are delivered through an interactive Streamlit dashboard, which display
 
 ## Visualizations
 
-The dashboard includes the following visual components:
+This dashboard presents near real-time PM2.5 air quality data across Thailand through interactive and interpretable visualizations built using Matplotlib and Plotly via Streamlit. These visual tools help translate complex environmental data into actionable insights for citizens and policymakers.:
 
 - Line Chart: Displays PM2.5 AQI trends over time.
 - Map View: Shows station locations with color-coded AQI levels.
 - Hourly Heatmap: Illustrates average AQI values across different hours.
 - Pie Chart: Represents the proportion of 'Good' vs. 'Bad' air quality statuses.
+- Dropdown filters (Station / Date-Time)
+
+🔍 Filtering Options: Province & Station
+Users can select a Province and specific Monitoring Station via dropdown filters in the sidebar. All charts update dynamically based on these selections, allowing for customized exploration.
+Insight: For example, selecting “Bangkok” immediately filters the dashboard to show data trends from inner-city stations, helping users monitor local air quality.  
+<img width="275" alt="Screenshot 2568-05-25 at 4 37 05 PM" src="https://github.com/user-attachments/assets/637e8a8b-5a76-489f-b9fc-5591d45cd32b" />
+
 
 # Data Schema
 ```json
